@@ -71,3 +71,9 @@ func ErrorJSON(w http.ResponseWriter, err error, status ...int) error {
 
 	return WriteJSON(w, statusCode, payload)
 }
+
+func CheckBalance(balance int, limit int, transactionValue int) bool {
+	limitAfter := balance + transactionValue
+
+	return limitAfter < limit
+}

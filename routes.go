@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -21,9 +22,12 @@ func (app *Config) routes() http.Handler {
 	}))
 
 	mux.Use(middleware.Heartbeat("/ping"))
-
 	// mux.Post("/clientes/:id/transacoes", CreateTransactionHandler)
-	mux.Get("/clientes/:id/extrato", app.GetTransactions)
+	mux.Get("/clientes/{id}/extrato", app.GetTransactionsHandler)
+	mux.Post("/cadastrar", app.CreateClientHandler)
+	mux.Post("/clientes/{id}/transacoes", app.CreateNewTransactionHandler)
+
+	fmt.Println(mux.Routes())
 
 	return mux
 }

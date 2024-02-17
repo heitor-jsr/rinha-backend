@@ -39,7 +39,6 @@ func main() {
 		Addr:    fmt.Sprintf(":%s", port),
 		Handler: app.routes(),
 	}
-
 	err := srv.ListenAndServe()
 
 	if err != nil {
