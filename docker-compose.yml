@@ -29,10 +29,14 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: rinha
     volumes:
-      - ./db-data/postgres/:/var/lib/postgresql/data/
-      - ./data/users.sql:/docker-entrypoint-initdb.d/create_tables.sql
+      - ./data/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: postgres -c checkpoint_timeout=600 -c max_wal_size=4096
     healthcheck:
       test: pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
       interval: 10s
       timeout: 2s
       retries: 10
+networks:
+  default:
+    driver: bridge
+    name: rinha-nginx-2024q1

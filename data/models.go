@@ -40,11 +40,12 @@ type Models struct {
 
 // User is the structure which holds one user from the database.
 type Transactions struct {
-	Value       int       `json:"valor"`
-	Type        string    `json:"tipo"`
-	Description string    `json:"descricao,omitempty"`
-	Done_at     time.Time `json:"done_at"`
-	ID          int       `json:"client_id"`
+	ID           int       `json:"id"`
+	Value        int       `json:"valor"`
+	Type         string    `json:"tipo"`
+	Description  string    `json:"descricao,omitempty"`
+	Realizada_em time.Time `json:"realizada_em"`
+	Cliente_ID   int       `json:"cliente_id"`
 }
 
 type Client struct {
@@ -74,7 +75,7 @@ func (app Models) CreateClientModel(client Client) (int, error) {
 	defer cancel()
 
 	var newID int
-	stmt := `insert into clients (limite, saldo)
+	stmt := `insert into clientes (limite, saldo)
 		values ($1, $2) returning id`
 
 	err := db.QueryRowContext(ctx, stmt,
@@ -93,7 +94,7 @@ func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	rows, _ := db.QueryContext(ctx, "SELECT saldo, limite, now() FROM clients WHERE id = $1", clientId)
+	rows, _ := db.QueryContext(ctx, "SELECT saldo, limite, now() FROM clientes WHERE id = $1", clientId)
 	var balance Balance
 	if rows.Next() {
 		err := rows.Scan(
@@ -107,7 +108,7 @@ func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {
 		}
 	}
 
-	rows, err := db.QueryContext(ctx, "SELECT valor, tipo, descricao, done_at, client_id FROM transactions WHERE client_id = $1 ORDER BY done_at DESC LIMIT 10", clientId)
+	rows, err := db.QueryContext(ctx, "SELECT valor, tipo, descricao, realizada_em, cliente_id FROM transacoes WHERE cliente_id = $1 ORDER BY realizada_em DESC LIMIT 10", clientId)
 	if err != nil {
 		log.Panicln(err)
 		return nil, err
@@ -122,7 +123,7 @@ func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {
 			&transaction.Value,
 			&transaction.Type,
 			&transaction.Description,
-			&transaction.Done_at,
+			&transaction.Realizada_em,
 			&transaction.ID,
 		)
 		if err != nil {
@@ -147,7 +148,7 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 
 	// Verificar se o cliente existe
 	var clientExists bool
-	err := db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM clients WHERE id = $1)", clientId).Scan(&clientExists)
+	err := db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM clientes WHERE id = $1)", clientId).Scan(&clientExists)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +166,7 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 		return nil, errors.New("descrição deve ter entre 1 e 10 caracteres")
 	}
 
-	rows, err := db.QueryContext(ctx, "SELECT saldo, limite FROM clients WHERE id = $1", clientId)
+	rows, err := db.QueryContext(ctx, "SELECT saldo, limite FROM clientes WHERE id = $1", clientId)
 	if err != nil {
 		return nil, err
 	}
@@ -195,8 +196,8 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 
 	// Inserir a transação no banco de dados
 	var newTransactionValue int
-	err = db.QueryRowContext(ctx, "INSERT INTO transactions (valor, tipo, descricao, done_at, client_id) VALUES ($1, $2, $3, $4, $5) RETURNING valor",
-		transaction.Value, transaction.Type, transaction.Description, transaction.Done_at, clientId).Scan(&newTransactionValue)
+	err = db.QueryRowContext(ctx, "INSERT INTO transacoes (valor, tipo, descricao, realizada_em, cliente_id) VALUES ($1, $2, $3, $4, $5) RETURNING valor",
+		transaction.Value, transaction.Type, transaction.Description, transaction.Realizada_em, clientId).Scan(&newTransactionValue)
 	if err != nil {
 		return nil, err
 	}
@@ -204,14 +205,14 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 	var updatedBalance int
 
 	if transaction.Type == "d" {
-		err = db.QueryRowContext(ctx, "UPDATE clients SET saldo = saldo - $1 WHERE id = $2 RETURNING saldo", transaction.Value, clientId).Scan(&updatedBalance)
+		err = db.QueryRowContext(ctx, "UPDATE clientes SET saldo = saldo - $1 WHERE id = $2 RETURNING saldo", transaction.Value, clientId).Scan(&updatedBalance)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if transaction.Type == "c" {
-		err = db.QueryRowContext(ctx, "UPDATE clients SET saldo = saldo + $1 WHERE id = $2 RETURNING saldo", transaction.Value, clientId).Scan(&updatedBalance)
+		err = db.QueryRowContext(ctx, "UPDATE clientes SET saldo = saldo + $1 WHERE id = $2 RETURNING saldo", transaction.Value, clientId).Scan(&updatedBalance)
 		if err != nil {
 			return nil, err
 		}
