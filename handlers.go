@@ -58,7 +58,7 @@ func (app *Config) CreateNewTransactionHandler(w http.ResponseWriter, r *http.Re
 
 	transactionResult, erro := data.Models.CreateTransactionModel(data.Models{}, newTransaction, clientId)
 	if erro != nil {
-		helpers.ErrorJSON(w, erro, http.StatusInternalServerError)
+		helpers.ErrorJSON(w, erro, http.StatusUnprocessableEntity)
 		return
 	}
 
