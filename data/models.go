@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"log"
 	"rinha-backend/helpers"
 	"time"
@@ -94,7 +93,21 @@ func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	rows, _ := db.QueryContext(ctx, "SELECT saldo, limite, now() FROM clientes WHERE id = $1", clientId)
+	var clientExists bool
+
+	err := db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM clientes WHERE id = $1)", clientId).Scan(&clientExists)
+	if err != nil {
+		return nil, err
+	}
+
+	if !clientExists {
+		return nil, errors.New("cliente não encontrado")
+	}
+
+	rows, err := db.QueryContext(ctx, "SELECT saldo, limite, now() FROM clientes WHERE id = $1", clientId)
+	if err != nil {
+		return nil, err
+	}
 	var balance Balance
 	if rows.Next() {
 		err := rows.Scan(
@@ -108,7 +121,7 @@ func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {
 		}
 	}
 
-	rows, err := db.QueryContext(ctx, "SELECT valor, tipo, descricao, realizada_em, cliente_id FROM transacoes WHERE cliente_id = $1 ORDER BY realizada_em DESC LIMIT 10", clientId)
+	rows, err = db.QueryContext(ctx, "SELECT valor, tipo, descricao, realizada_em, cliente_id FROM transacoes WHERE cliente_id = $1 ORDER BY realizada_em DESC LIMIT 10", clientId)
 	if err != nil {
 		log.Panicln(err)
 		return nil, err
@@ -184,8 +197,6 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 	} else {
 		return nil, errors.New("cliente não encontrado")
 	}
-
-	fmt.Println(balance.Total)
 
 	if transaction.Type == "d" {
 		// Verificar se a transação de débito deixa o saldo inconsistente

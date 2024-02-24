@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"rinha-backend/data"
 	"rinha-backend/helpers"
@@ -28,16 +29,22 @@ func (app *Config) CreateClientHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *Config) GetTransactionsHandler(w http.ResponseWriter, r *http.Request) {
+
 	// como sabemos, para capturar o parametro de busca de uma rota, precisamos primeiro capturar ele de forma dinâmica. parra isso, usamos o query string, que em go é feito da maneira abaixo.
 	clientIdStr := chi.URLParam(r, "id")
-
+	if clientIdStr == "" {
+		helpers.ErrorJSON(w, errors.New("forneça um ID para a consulta"), http.StatusUnprocessableEntity)
+		return
+	}
 	// Converter o valor para um inteiro
 	clientId, _ := strconv.Atoi(clientIdStr)
 
+	err := errors.New("cliente não encontrado")
+
 	transactions, erro := data.Models.GetTransactionsModel(data.Models{}, clientId)
-	// data.Models.GetExtractHandler(*data.Models.Statement{}, clientId)
-	if erro != nil {
-		helpers.ErrorJSON(w, erro, http.StatusUnauthorized)
+	if errors.Is(erro, err) || erro != nil {
+		helpers.ErrorJSON(w, erro, http.StatusUnprocessableEntity)
+		return
 	}
 
 	helpers.WriteJSON(w, http.StatusOK, transactions)
@@ -52,12 +59,17 @@ func (app *Config) CreateNewTransactionHandler(w http.ResponseWriter, r *http.Re
 	}
 
 	clientIdStr := chi.URLParam(r, "id")
+	if clientIdStr == "" {
+		helpers.ErrorJSON(w, errors.New("forneça um ID para a consulta"), http.StatusUnprocessableEntity)
+		return
+	}
 
 	// Converter o valor para um inteiro
 	clientId, _ := strconv.Atoi(clientIdStr)
+	err := errors.New("cliente não encontrado")
 
 	transactionResult, erro := data.Models.CreateTransactionModel(data.Models{}, newTransaction, clientId)
-	if erro != nil {
+	if errors.Is(erro, err) || erro != nil {
 		helpers.ErrorJSON(w, erro, http.StatusUnprocessableEntity)
 		return
 	}
