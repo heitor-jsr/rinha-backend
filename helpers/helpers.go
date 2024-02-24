@@ -72,8 +72,9 @@ func ErrorJSON(w http.ResponseWriter, err error, status ...int) error {
 	return WriteJSON(w, statusCode, payload)
 }
 
+// Balance atual. NewBalance. Se for débito, o NewBalance = o balance atual - o valor da transação. Como o limite tá salvo como positivo no banco, a comparação tem que ser negativa. O limite sempre vai ser negativo, porque permite vc usar o dinheiro do banco sem ter dinheiro.
 func CheckBalance(balance int, limit int, transactionValue int) bool {
-	limitAfter := balance + transactionValue
-
-	return limitAfter < limit
+	// limitAfter := balance + transactionValue + limit
+	newBalance := balance - transactionValue
+	return newBalance < -limit
 }

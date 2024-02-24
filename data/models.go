@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"log"
-	"rinha-backend/helpers"
 	"time"
 )
 
@@ -39,12 +38,12 @@ type Models struct {
 
 // User is the structure which holds one user from the database.
 type Transactions struct {
-	ID           int       `json:"id"`
+	ID           int       `json:"-"`
 	Value        int       `json:"valor"`
 	Type         string    `json:"tipo"`
-	Description  string    `json:"descricao,omitempty"`
+	Description  string    `json:"descricao"`
 	Realizada_em time.Time `json:"realizada_em"`
-	Cliente_ID   int       `json:"cliente_id"`
+	Cliente_ID   int       `json:"-"`
 }
 
 type Client struct {
@@ -121,7 +120,7 @@ func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {
 		}
 	}
 
-	rows, err = db.QueryContext(ctx, "SELECT valor, tipo, descricao, realizada_em, cliente_id FROM transacoes WHERE cliente_id = $1 ORDER BY realizada_em DESC LIMIT 10", clientId)
+	rows, err = db.QueryContext(ctx, "SELECT valor, tipo, descricao, realizada_em FROM transacoes WHERE cliente_id = $1 ORDER BY realizada_em DESC LIMIT 10", clientId)
 	if err != nil {
 		log.Panicln(err)
 		return nil, err
@@ -137,7 +136,6 @@ func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {
 			&transaction.Type,
 			&transaction.Description,
 			&transaction.Realizada_em,
-			&transaction.ID,
 		)
 		if err != nil {
 			log.Println("Error scanning", err)
@@ -194,43 +192,40 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		return nil, errors.New("cliente não encontrado")
 	}
 
+	var newBalance int
+
 	if transaction.Type == "d" {
+		newBalance = balance.Total - transaction.Value
 		// Verificar se a transação de débito deixa o saldo inconsistente
-		if !helpers.CheckBalance(balance.Total, balance.Limit, transaction.Value) {
+		if newBalance < -balance.Limit {
 			return nil, errors.New("a transação de débito deixaria o saldo inconsistente")
 		}
-	}
 
-	// Inserir a transação no banco de dados
-	var newTransactionValue int
-	err = db.QueryRowContext(ctx, "INSERT INTO transacoes (valor, tipo, descricao, realizada_em, cliente_id) VALUES ($1, $2, $3, $4, $5) RETURNING valor",
-		transaction.Value, transaction.Type, transaction.Description, transaction.Realizada_em, clientId).Scan(&newTransactionValue)
-	if err != nil {
-		return nil, err
-	}
-
-	var updatedBalance int
-
-	if transaction.Type == "d" {
-		err = db.QueryRowContext(ctx, "UPDATE clientes SET saldo = saldo - $1 WHERE id = $2 RETURNING saldo", transaction.Value, clientId).Scan(&updatedBalance)
+		_, err = db.ExecContext(ctx, "UPDATE clientes SET saldo = $1 WHERE id = $2", newBalance, clientId)
 		if err != nil {
 			return nil, err
 		}
 	}
 
+	// Inserir a transação no banco de dados
+	_, err = db.ExecContext(ctx, "INSERT INTO transacoes (valor, tipo, descricao, cliente_id) VALUES ($1, $2, $3, $4)",
+		transaction.Value, transaction.Type, transaction.Description, clientId)
+	if err != nil {
+		return nil, err
+	}
+
 	if transaction.Type == "c" {
-		err = db.QueryRowContext(ctx, "UPDATE clientes SET saldo = saldo + $1 WHERE id = $2 RETURNING saldo", transaction.Value, clientId).Scan(&updatedBalance)
+		newBalance = balance.Total + transaction.Value
+		_, err = db.ExecContext(ctx, "UPDATE clientes SET saldo = $1 WHERE id = $2", newBalance, clientId)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	result := &TransactionResult{
-		Balance: updatedBalance,
+		Balance: newBalance,
 		Limit:   balance.Limit,
 	}
 

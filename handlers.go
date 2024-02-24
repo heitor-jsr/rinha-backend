@@ -33,17 +33,25 @@ func (app *Config) GetTransactionsHandler(w http.ResponseWriter, r *http.Request
 	// como sabemos, para capturar o parametro de busca de uma rota, precisamos primeiro capturar ele de forma dinâmica. parra isso, usamos o query string, que em go é feito da maneira abaixo.
 	clientIdStr := chi.URLParam(r, "id")
 	if clientIdStr == "" {
-		helpers.ErrorJSON(w, errors.New("forneça um ID para a consulta"), http.StatusUnprocessableEntity)
+		helpers.ErrorJSON(w, errors.New("forneça um ID para a consulta"), http.StatusNotFound)
 		return
 	}
 	// Converter o valor para um inteiro
 	clientId, _ := strconv.Atoi(clientIdStr)
 
 	err := errors.New("cliente não encontrado")
-
+	err2 := errors.New("a transação de débito deixaria o saldo inconsistente")
 	transactions, erro := data.Models.GetTransactionsModel(data.Models{}, clientId)
-	if errors.Is(erro, err) || erro != nil {
-		helpers.ErrorJSON(w, erro, http.StatusUnprocessableEntity)
+	if erro != nil {
+		if errors.Is(erro, err) {
+			helpers.ErrorJSON(w, erro, http.StatusNotFound)
+			return
+		}
+		if errors.Is(erro, err2) {
+			helpers.ErrorJSON(w, erro, http.StatusUnprocessableEntity)
+			return
+		}
+		helpers.ErrorJSON(w, erro, http.StatusInternalServerError)
 		return
 	}
 
@@ -60,17 +68,26 @@ func (app *Config) CreateNewTransactionHandler(w http.ResponseWriter, r *http.Re
 
 	clientIdStr := chi.URLParam(r, "id")
 	if clientIdStr == "" {
-		helpers.ErrorJSON(w, errors.New("forneça um ID para a consulta"), http.StatusUnprocessableEntity)
+		helpers.ErrorJSON(w, errors.New("forneça um ID para a consulta"), http.StatusNotFound)
 		return
 	}
 
 	// Converter o valor para um inteiro
 	clientId, _ := strconv.Atoi(clientIdStr)
 	err := errors.New("cliente não encontrado")
+	err2 := errors.New("a transação de débito deixaria o saldo inconsistente")
 
 	transactionResult, erro := data.Models.CreateTransactionModel(data.Models{}, newTransaction, clientId)
-	if errors.Is(erro, err) || erro != nil {
-		helpers.ErrorJSON(w, erro, http.StatusUnprocessableEntity)
+	if erro != nil {
+		if errors.Is(erro, err) {
+			helpers.ErrorJSON(w, erro, http.StatusNotFound)
+			return
+		}
+		if errors.Is(erro, err2) {
+			helpers.ErrorJSON(w, erro, http.StatusUnprocessableEntity)
+			return
+		}
+		helpers.ErrorJSON(w, erro, http.StatusInternalServerError)
 		return
 	}
 

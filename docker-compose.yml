@@ -1,20 +1,26 @@
 version: '3.5'
 
 services:
-  api01:
+  api01: &api
     build:
       context: .
       dockerfile: Dockerfile
     image: rinha
     restart: always
     ports:
-      - "8080:8080"
+      - "8081:8080"
     deploy:
       mode: replicated
       replicas: 1
     environment:
       DSN: "host=postgres port=5432 user=postgres password=password dbname=rinha sslmode=disable timezone=UTC connect_timeout=5"
-
+  api02:
+    # Essa sintaxe reusa o que foi declarado em 'api01'.
+    <<: *api
+    hostname: api02
+    ports:
+      - "8082:8080"
+  
   postgres:
     image: 'postgres:latest'
     ports:
@@ -23,8 +29,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.13"
-          memory: "140MB"
+          cpus: "1"
+          memory: "300MB"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -37,6 +43,7 @@ services:
       interval: 10s
       timeout: 2s
       retries: 10
+
   nginx:
     image: nginx:latest
     volumes:
@@ -49,8 +56,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.17"
-          memory: "10MB"
+          cpus: "0.1"
+          memory: "20MB"
 networks:
   default:
     driver: bridge
