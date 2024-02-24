@@ -2,10 +2,11 @@ package middlewares
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"rinha-backend/helpers"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 )
 
 func ValidateID(next http.Handler) http.Handler {
@@ -24,10 +25,11 @@ func ValidateID(next http.Handler) http.Handler {
 }
 
 func extractID(r *http.Request) (string, error) {
-	vars := mux.Vars(r)
-	id := vars["id"]
+	id := chi.URLParam(r, "id")
+
+	fmt.Println(r)
 	if id == "" {
-		return "", errors.New("ID não encontrado na URL")
+		return "", errors.New("cliente não encontrado para o ID fornecido")
 	}
 	return id, nil
 }
