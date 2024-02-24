@@ -2,7 +2,6 @@ package main
 
 import (
 	"net/http"
-	"rinha-backend/middlewares"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -22,8 +21,6 @@ func (app *Config) routes() http.Handler {
 	}))
 
 	mux.Use(middleware.Heartbeat("/ping"))
-	mux.Use(middlewares.ValidateID)
-	// mux.Post("/clientes/:id/transacoes", CreateTransactionHandler)
 	mux.Get("/clientes/{id}/extrato", app.GetTransactionsHandler)
 	mux.Post("/cadastrar", app.CreateClientHandler)
 	mux.Post("/clientes/{id}/transacoes", app.CreateNewTransactionHandler)
