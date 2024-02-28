@@ -39,20 +39,18 @@ func (app *Config) GetTransactionsHandler(w http.ResponseWriter, r *http.Request
 	// Converter o valor para um inteiro
 	clientId, _ := strconv.Atoi(clientIdStr)
 
-	err := errors.New("cliente não encontrado")
-	err2 := errors.New("a transação de débito deixaria o saldo inconsistente")
 	transactions, erro := data.Models.GetTransactionsModel(data.Models{}, clientId)
 	if erro != nil {
-		if errors.Is(erro, err) {
+		if erro.Error() == "cliente não encontrado" {
 			helpers.ErrorJSON(w, erro, http.StatusNotFound)
 			return
-		}
-		if errors.Is(erro, err2) {
+		} else if erro.Error() == "a transação de débito deixaria o saldo inconsistente" {
 			helpers.ErrorJSON(w, erro, http.StatusUnprocessableEntity)
 			return
+		} else {
+			helpers.ErrorJSON(w, erro, http.StatusInternalServerError)
+			return
 		}
-		helpers.ErrorJSON(w, erro, http.StatusInternalServerError)
-		return
 	}
 
 	helpers.WriteJSON(w, http.StatusOK, transactions)
@@ -74,21 +72,19 @@ func (app *Config) CreateNewTransactionHandler(w http.ResponseWriter, r *http.Re
 
 	// Converter o valor para um inteiro
 	clientId, _ := strconv.Atoi(clientIdStr)
-	err := errors.New("cliente não encontrado")
-	err2 := errors.New("a transação de débito deixaria o saldo inconsistente")
 
 	transactionResult, erro := data.Models.CreateTransactionModel(data.Models{}, newTransaction, clientId)
 	if erro != nil {
-		if errors.Is(erro, err) {
+		if erro.Error() == "cliente não encontrado" {
 			helpers.ErrorJSON(w, erro, http.StatusNotFound)
 			return
-		}
-		if errors.Is(erro, err2) {
+		} else if erro.Error() == "a transação de débito deixaria o saldo inconsistente" {
 			helpers.ErrorJSON(w, erro, http.StatusUnprocessableEntity)
 			return
+		} else {
+			helpers.ErrorJSON(w, erro, http.StatusInternalServerError)
+			return
 		}
-		helpers.ErrorJSON(w, erro, http.StatusInternalServerError)
-		return
 	}
 
 	helpers.WriteJSON(w, http.StatusOK, transactionResult)

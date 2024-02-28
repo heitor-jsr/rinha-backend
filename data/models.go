@@ -48,7 +48,7 @@ type Transactions struct {
 
 type Client struct {
 	ID      int `json:"id"`
-	Limit   int `json:"limit"`
+	Limit   int `json:"limite"`
 	Balance int `json:"balance"`
 }
 
