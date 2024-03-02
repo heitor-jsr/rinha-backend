@@ -11,22 +11,22 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func (app *Config) CreateClientHandler(w http.ResponseWriter, r *http.Request) {
-	var client data.Client
+// func (app *Config) CreateClientHandler(w http.ResponseWriter, r *http.Request) {
+// 	var client data.Client
 
-	if erro := json.NewDecoder(r.Body).Decode(&client); erro != nil {
-		helpers.ErrorJSON(w, erro, http.StatusBadRequest)
-		return
-	}
+// 	if erro := json.NewDecoder(r.Body).Decode(&client); erro != nil {
+// 		helpers.ErrorJSON(w, erro, http.StatusBadRequest)
+// 		return
+// 	}
 
-	newId, erro := data.Models.CreateClientModel(data.Models{}, client)
-	if erro != nil {
-		helpers.ErrorJSON(w, erro, http.StatusInternalServerError)
-		return
-	}
+// 	newId, erro := data.Models.CreateClientModel(data.Models{}, client)
+// 	if erro != nil {
+// 		helpers.ErrorJSON(w, erro, http.StatusInternalServerError)
+// 		return
+// 	}
 
-	helpers.WriteJSON(w, http.StatusOK, newId)
-}
+// 	helpers.WriteJSON(w, http.StatusOK, newId)
+// }
 
 func (app *Config) GetTransactionsHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -41,16 +41,15 @@ func (app *Config) GetTransactionsHandler(w http.ResponseWriter, r *http.Request
 
 	transactions, erro := data.Models.GetTransactionsModel(data.Models{}, clientId)
 	if erro != nil {
-		if erro.Error() == "cliente não encontrado" {
+		switch erro.Error() {
+		case "cliente não encontrado":
 			helpers.ErrorJSON(w, erro, http.StatusNotFound)
-			return
-		} else if erro.Error() == "a transação de débito deixaria o saldo inconsistente" {
+		case "a transação de débito deixaria o saldo inconsistente", "tipo de transação inválido", "descrição deve ter entre 1 e 10 caracteres":
 			helpers.ErrorJSON(w, erro, http.StatusUnprocessableEntity)
-			return
-		} else {
+		default:
 			helpers.ErrorJSON(w, erro, http.StatusInternalServerError)
-			return
 		}
+		return
 	}
 
 	helpers.WriteJSON(w, http.StatusOK, transactions)
@@ -75,16 +74,15 @@ func (app *Config) CreateNewTransactionHandler(w http.ResponseWriter, r *http.Re
 
 	transactionResult, erro := data.Models.CreateTransactionModel(data.Models{}, newTransaction, clientId)
 	if erro != nil {
-		if erro.Error() == "cliente não encontrado" {
+		switch erro.Error() {
+		case "cliente não encontrado":
 			helpers.ErrorJSON(w, erro, http.StatusNotFound)
-			return
-		} else if erro.Error() == "a transação de débito deixaria o saldo inconsistente" {
+		case "a transação de débito deixaria o saldo inconsistente", "tipo de transação inválido", "descrição deve ter entre 1 e 10 caracteres":
 			helpers.ErrorJSON(w, erro, http.StatusUnprocessableEntity)
-			return
-		} else {
+		default:
 			helpers.ErrorJSON(w, erro, http.StatusInternalServerError)
-			return
 		}
+		return
 	}
 
 	helpers.WriteJSON(w, http.StatusOK, transactionResult)
