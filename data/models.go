@@ -2,19 +2,21 @@ package data
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log"
 	"time"
+
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 const dbTimeout = time.Second * 3
 
-var db *sql.DB
+var db *pgxpool.Pool
 
 // New is the function used to create an instance of the data package. It returns the type
 // Model, which embeds all the types we want to be available to our application.
-func New(dbPool *sql.DB) Models {
+func New(dbPool *pgxpool.Pool) Models {
 	db = dbPool
 
 	return Models{
@@ -68,33 +70,45 @@ type TransactionResult struct {
 	Balance int `json:"saldo"`
 }
 
-func (app Models) CreateClientModel(client Client) (int, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	defer cancel()
+// func (app Models) CreateClientModel(client Client) (int, error) {
+// 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+// 	defer cancel()
 
-	var newID int
-	stmt := `insert into clientes (limite, saldo)
-		values ($1, $2) returning id`
+// 	var newID int
+// 	stmt := `insert into clientes (limite, saldo)
+// 		values ($1, $2) returning id`
 
-	err := db.QueryRowContext(ctx, stmt,
-		client.Balance,
-		client.Limit,
-	).Scan(&newID)
+// 	err := db.QueryRowContext(ctx, stmt,
+// 		client.Balance,
+// 		client.Limit,
+// 	).Scan(&newID)
 
-	if err != nil {
-		return 0, err
-	}
+// 	if err != nil {
+// 		return 0, err
+// 	}
 
-	return newID, nil
-}
+// 	return newID, nil
+// }
 
 func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback(ctx)
+			return
+		}
+		err = tx.Commit(ctx)
+	}()
+
 	var clientExists bool
 
-	err := db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM clientes WHERE id = $1)", clientId).Scan(&clientExists)
+	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM clientes WHERE id = $1) FOR UPDATE", clientId).Scan(&clientExists)
 	if err != nil {
 		return nil, err
 	}
@@ -103,24 +117,20 @@ func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {
 		return nil, errors.New("cliente não encontrado")
 	}
 
-	rows, err := db.QueryContext(ctx, "SELECT saldo, limite, now() FROM clientes WHERE id = $1", clientId)
+	// Consulta usando QueryRow para obter apenas uma linha
+	row := tx.QueryRow(ctx, "SELECT saldo, limite, now() FROM clientes WHERE id = $1 FOR UPDATE", clientId)
+	var balance Balance
+	err = row.Scan(
+		&balance.Total,
+		&balance.Limit,
+		&balance.Statement_date,
+	)
 	if err != nil {
 		return nil, err
 	}
-	var balance Balance
-	if rows.Next() {
-		err := rows.Scan(
-			&balance.Total,
-			&balance.Limit,
-			&balance.Statement_date,
-		)
 
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	rows, err = db.QueryContext(ctx, "SELECT valor, tipo, descricao, realizada_em FROM transacoes WHERE cliente_id = $1 ORDER BY realizada_em DESC LIMIT 10", clientId)
+	// Consulta usando Query para obter várias linhas
+	rows, err := tx.Query(ctx, "SELECT valor, tipo, descricao, realizada_em FROM transacoes WHERE cliente_id = $1 ORDER BY realizada_em DESC LIMIT 10 FOR UPDATE", clientId)
 	if err != nil {
 		log.Panicln(err)
 		return nil, err
@@ -157,9 +167,20 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback(ctx)
+			return
+		}
+		err = tx.Commit(ctx)
+	}()
 	// Verificar se o cliente existe
 	var clientExists bool
-	err := db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM clientes WHERE id = $1)", clientId).Scan(&clientExists)
+	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM clientes WHERE id = $1) FOR UPDATE", clientId).Scan(&clientExists)
 	if err != nil {
 		return nil, err
 	}
@@ -177,21 +198,18 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 		return nil, errors.New("descrição deve ter entre 1 e 10 caracteres")
 	}
 
-	rows, err := db.QueryContext(ctx, "SELECT saldo, limite FROM clientes WHERE id = $1", clientId)
+	rows := tx.QueryRow(ctx, "SELECT saldo, limite FROM clientes WHERE id = $1 FOR UPDATE", clientId)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var balance Balance
-	if rows.Next() {
-		err := rows.Scan(
-			&balance.Total,
-			&balance.Limit,
-		)
-		if err != nil {
-			return nil, err
-		}
+	err = rows.Scan(
+		&balance.Total,
+		&balance.Limit,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	var newBalance int
@@ -203,14 +221,14 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 			return nil, errors.New("a transação de débito deixaria o saldo inconsistente")
 		}
 
-		_, err = db.ExecContext(ctx, "UPDATE clientes SET saldo = $1 WHERE id = $2", newBalance, clientId)
+		_, err = tx.Exec(ctx, "UPDATE clientes SET saldo = $1 WHERE id = $2", newBalance, clientId)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// Inserir a transação no banco de dados
-	_, err = db.ExecContext(ctx, "INSERT INTO transacoes (valor, tipo, descricao, cliente_id) VALUES ($1, $2, $3, $4)",
+	_, err = tx.Exec(ctx, "INSERT INTO transacoes (valor, tipo, descricao, cliente_id) VALUES ($1, $2, $3, $4)",
 		transaction.Value, transaction.Type, transaction.Description, clientId)
 	if err != nil {
 		return nil, err
@@ -218,7 +236,7 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 
 	if transaction.Type == "c" {
 		newBalance = balance.Total + transaction.Value
-		_, err = db.ExecContext(ctx, "UPDATE clientes SET saldo = $1 WHERE id = $2", newBalance, clientId)
+		_, err = tx.Exec(ctx, "UPDATE clientes SET saldo = $1 WHERE id = $2", newBalance, clientId)
 		if err != nil {
 			return nil, err
 		}

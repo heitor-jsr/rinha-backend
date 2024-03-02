@@ -1,7 +1,7 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,77 +10,96 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgconn"
-	_ "github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
+func ConfigPGX() *pgxpool.Config {
+	const defaultMaxConns = int32(5)
+	const defaultMinConns = int32(0)
+	const defaultMaxConnLifetime = time.Hour
+	const defaultMaxConnIdleTime = time.Minute * 30
+	const defaultHealthCheckPeriod = time.Minute
+	const defaultConnectTimeout = time.Second * 5
+
+	// Your own Database URL
+	DATABASE_URL := os.Getenv("DSN")
+
+	dbConfig, err := pgxpool.ParseConfig(DATABASE_URL)
+	if err != nil {
+		log.Fatal("Failed to create a config, error: ", err)
+	}
+
+	dbConfig.MaxConns = defaultMaxConns
+	dbConfig.MinConns = defaultMinConns
+	dbConfig.MaxConnLifetime = defaultMaxConnLifetime
+	dbConfig.MaxConnIdleTime = defaultMaxConnIdleTime
+	dbConfig.HealthCheckPeriod = defaultHealthCheckPeriod
+	dbConfig.ConnConfig.ConnectTimeout = defaultConnectTimeout
+
+	dbConfig.BeforeAcquire = func(ctx context.Context, c *pgx.Conn) bool {
+		log.Println("Before acquiring the connection pool to the database!!")
+		return true
+	}
+
+	dbConfig.AfterRelease = func(c *pgx.Conn) bool {
+		log.Println("After releasing the connection pool to the database!!")
+		return true
+	}
+
+	return dbConfig
+}
+
 const port = "8080"
 
-var counts int64
-
 type Config struct {
-	DB     *sql.DB
+	DB     *pgxpool.Pool
 	Models data.Models
 }
 
 func main() {
 	log.Println("Starting authentication service")
-	conn := connectToDB()
-	if conn == nil {
+	pool, err := connectToDB()
+	if err != nil {
 		log.Panic("Can't connect to Postgres")
 	}
 
+	defer pool.Close()
+
 	app := Config{
-		DB:     conn,
-		Models: data.New(conn),
+		DB:     pool,
+		Models: data.New(pool),
 	}
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%s", port),
 		Handler: app.routes(),
 	}
-	err := srv.ListenAndServe()
+	err = srv.ListenAndServe()
 
 	if err != nil {
 		log.Panic(err)
 	}
 }
 
-func openDB(dsn string) (*sql.DB, error) {
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		return nil, err
-	}
+func connectToDB() (*pgxpool.Pool, error) {
+	var pool *pgxpool.Pool
+	var err error
 
-	err = db.Ping()
-	if err != nil {
-		return nil, err
-	}
+	for i := 0; i < 10; i++ {
+		log.Printf("Connecting to Postgres, attempt %d\n", i+1)
 
-	return db, nil
-}
-
-func connectToDB() *sql.DB {
-	dsn := os.Getenv("DSN")
-
-	for {
-		connection, err := openDB(dsn)
+		pool, err = pgxpool.ConnectConfig(context.Background(), ConfigPGX())
 		if err != nil {
-			log.Println("Postgres not yet ready...")
-			counts++
-		} else {
-			log.Println("Connected to Postgres")
-			return connection
+			log.Printf("Failed to connect to Postgres: %v\n", err)
+			time.Sleep(2 * time.Second)
+			continue
 		}
 
-		if counts > 10 {
-			log.Println(err)
-			return nil
-		}
-
-		log.Println("Backing off for two seconds...")
-
-		time.Sleep(2 * time.Second)
-		continue
+		log.Println("Connected to Postgres")
+		return pool, nil
 	}
+
+	return nil, fmt.Errorf("failed to connect to Postgres after 10 attempts")
 }
