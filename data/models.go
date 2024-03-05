@@ -14,8 +14,6 @@ const dbTimeout = time.Second * 3
 
 var db *pgxpool.Pool
 
-// New is the function used to create an instance of the data package. It returns the type
-// Model, which embeds all the types we want to be available to our application.
 func New(dbPool *pgxpool.Pool) Models {
 	db = dbPool
 
@@ -27,9 +25,6 @@ func New(dbPool *pgxpool.Pool) Models {
 	}
 }
 
-// Models is the type for this package. Note that any model that is included as a member
-// in this type is available to us throughout the application, anywhere that the
-// app variable is used, provided that the model is also added in the New function.
 type Models struct {
 	Transactions      Transactions
 	Client            Client
@@ -38,7 +33,6 @@ type Models struct {
 	TransactionResult TransactionResult
 }
 
-// User is the structure which holds one user from the database.
 type Transactions struct {
 	ID           int       `json:"-"`
 	Value        int       `json:"valor"`
@@ -70,26 +64,6 @@ type TransactionResult struct {
 	Balance int `json:"saldo"`
 }
 
-// func (app Models) CreateClientModel(client Client) (int, error) {
-// 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-// 	defer cancel()
-
-// 	var newID int
-// 	stmt := `insert into clientes (limite, saldo)
-// 		values ($1, $2) returning id`
-
-// 	err := db.QueryRowContext(ctx, stmt,
-// 		client.Balance,
-// 		client.Limit,
-// 	).Scan(&newID)
-
-// 	if err != nil {
-// 		return 0, err
-// 	}
-
-// 	return newID, nil
-// }
-
 func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -117,7 +91,6 @@ func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {
 		return nil, errors.New("cliente não encontrado")
 	}
 
-	// Consulta usando QueryRow para obter apenas uma linha
 	row := tx.QueryRow(ctx, "SELECT saldo, limite, now() FROM clientes WHERE id = $1 FOR UPDATE", clientId)
 	var balance Balance
 	err = row.Scan(
@@ -129,7 +102,6 @@ func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {
 		return nil, err
 	}
 
-	// Consulta usando Query para obter várias linhas
 	rows, err := tx.Query(ctx, "SELECT valor, tipo, descricao, realizada_em FROM transacoes WHERE cliente_id = $1 ORDER BY realizada_em DESC LIMIT 10 FOR UPDATE", clientId)
 	if err != nil {
 		log.Panicln(err)
@@ -178,7 +150,6 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 		}
 		err = tx.Commit(ctx)
 	}()
-	// Verificar se o cliente existe
 	var clientExists bool
 	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM clientes WHERE id = $1) FOR UPDATE", clientId).Scan(&clientExists)
 	if err != nil {
@@ -188,12 +159,10 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 		return nil, errors.New("cliente não encontrado")
 	}
 
-	// Verificar se o tipo de transação é válido
 	if transaction.Type != "c" && transaction.Type != "d" {
 		return nil, errors.New("tipo de transação inválido")
 	}
 
-	// Verificar se a descrição tem entre 1 e 10 caracteres
 	if len(transaction.Description) < 1 || len(transaction.Description) > 10 {
 		return nil, errors.New("descrição deve ter entre 1 e 10 caracteres")
 	}
@@ -216,7 +185,6 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 
 	if transaction.Type == "d" {
 		newBalance = balance.Total - transaction.Value
-		// Verificar se a transação de débito deixa o saldo inconsistente
 		if newBalance < -balance.Limit {
 			return nil, errors.New("a transação de débito deixaria o saldo inconsistente")
 		}
@@ -227,7 +195,6 @@ func (app Models) CreateTransactionModel(transaction Transactions, clientId int)
 		}
 	}
 
-	// Inserir a transação no banco de dados
 	_, err = tx.Exec(ctx, "INSERT INTO transacoes (valor, tipo, descricao, cliente_id) VALUES ($1, $2, $3, $4)",
 		transaction.Value, transaction.Type, transaction.Description, clientId)
 	if err != nil {

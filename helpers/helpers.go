@@ -13,9 +13,8 @@ type jsonResponse struct {
 	Data    any    `json:"data,omitempty"`
 }
 
-// readJSON tries to read the body of a request and converts it into JSON
 func ReadJSON(w http.ResponseWriter, r *http.Request, data any) error {
-	maxBytes := 1048576 // one megabyte
+	maxBytes := 1048576
 
 	r.Body = http.MaxBytesReader(w, r.Body, int64(maxBytes))
 
@@ -33,7 +32,6 @@ func ReadJSON(w http.ResponseWriter, r *http.Request, data any) error {
 	return nil
 }
 
-// writeJSON takes a response status code and arbitrary data and writes a json response to the client
 func WriteJSON(w http.ResponseWriter, status int, data any, headers ...http.Header) error {
 	out, err := json.Marshal(data)
 	if err != nil {
@@ -56,8 +54,6 @@ func WriteJSON(w http.ResponseWriter, status int, data any, headers ...http.Head
 	return nil
 }
 
-// errorJSON takes an error, and optionally a response status code, and generates and sends
-// a json error response
 func ErrorJSON(w http.ResponseWriter, err error, status ...int) error {
 	statusCode := http.StatusBadRequest
 
@@ -70,11 +66,4 @@ func ErrorJSON(w http.ResponseWriter, err error, status ...int) error {
 	payload.Message = err.Error()
 
 	return WriteJSON(w, statusCode, payload)
-}
-
-// Balance atual. NewBalance. Se for débito, o NewBalance = o balance atual - o valor da transação. Como o limite tá salvo como positivo no banco, a comparação tem que ser negativa. O limite sempre vai ser negativo, porque permite vc usar o dinheiro do banco sem ter dinheiro.
-func CheckBalance(balance int, limit int, transactionValue int) bool {
-	// limitAfter := balance + transactionValue + limit
-	newBalance := balance - transactionValue
-	return newBalance < -limit
 }

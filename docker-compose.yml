@@ -15,7 +15,6 @@ services:
     environment:
       DSN: "host=postgres port=5432 user=postgres password=password dbname=rinha sslmode=disable timezone=UTC connect_timeout=5"
   api02:
-    # Essa sintaxe reusa o que foi declarado em 'api01'.
     <<: *api
     hostname: api02
     ports:

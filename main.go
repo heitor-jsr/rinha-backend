@@ -23,7 +23,6 @@ func ConfigPGX() *pgxpool.Config {
 	const defaultHealthCheckPeriod = time.Minute
 	const defaultConnectTimeout = time.Second * 5
 
-	// Your own Database URL
 	DATABASE_URL := os.Getenv("DSN")
 
 	dbConfig, err := pgxpool.ParseConfig(DATABASE_URL)

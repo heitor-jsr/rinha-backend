@@ -22,7 +22,6 @@ func (app *Config) routes() http.Handler {
 
 	mux.Use(middleware.Heartbeat("/ping"))
 	mux.Get("/clientes/{id}/extrato", app.GetTransactionsHandler)
-	// mux.Post("/cadastrar", app.CreateClientHandler)
 	mux.Post("/clientes/{id}/transacoes", app.CreateNewTransactionHandler)
 
 	return mux
