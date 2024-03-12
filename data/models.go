@@ -43,9 +43,10 @@ type Transactions struct {
 }
 
 type Client struct {
-	ID      int `json:"id"`
-	Limit   int `json:"limite"`
-	Balance int `json:"balance"`
+	ID      int    `json:"id"`
+	Limit   int    `json:"limite"`
+	Balance int    `json:"balance"`
+	Name    string `json:"nome"`
 }
 
 type Statement struct {
@@ -62,6 +63,33 @@ type Balance struct {
 type TransactionResult struct {
 	Limit   int `json:"limite"`
 	Balance int `json:"saldo"`
+}
+
+func (app Models) CreateClientModel(client Client) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	var newID int
+
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback(ctx)
+			return
+		}
+		err = tx.Commit(ctx)
+	}()
+
+	err = tx.QueryRow(ctx, "INSERT INTO clientes (nome, limite, saldo) VALUES ($1, $2, $3) RETURNING id",
+		client.Name, client.Limit, client.Balance).Scan(&newID)
+	if err != nil {
+		return 0, err
+	}
+
+	return newID, nil
 }
 
 func (app Models) GetTransactionsModel(clientId int) (*Statement, error) {

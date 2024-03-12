@@ -11,6 +11,23 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+func (app *Config) CreateClientHandler(w http.ResponseWriter, r *http.Request) {
+	var client data.Client
+
+	if erro := json.NewDecoder(r.Body).Decode(&client); erro != nil {
+		helpers.ErrorJSON(w, erro, http.StatusBadRequest)
+		return
+	}
+
+	newId, erro := data.Models.CreateClientModel(data.Models{}, client)
+	if erro != nil {
+		helpers.ErrorJSON(w, erro, http.StatusInternalServerError)
+		return
+	}
+
+	helpers.WriteJSON(w, http.StatusOK, newId)
+}
+
 func (app *Config) GetTransactionsHandler(w http.ResponseWriter, r *http.Request) {
 
 	clientIdStr := chi.URLParam(r, "id")
