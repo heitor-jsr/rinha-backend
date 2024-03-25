@@ -31,6 +31,7 @@ type Models struct {
 	Statement         Statement
 	Balance           Balance
 	TransactionResult TransactionResult
+	Agent             Agent
 }
 
 type Transactions struct {
@@ -63,6 +64,13 @@ type Balance struct {
 type TransactionResult struct {
 	Limit   int `json:"limite"`
 	Balance int `json:"saldo"`
+}
+
+type Agent struct {
+	ID          int      `json:"id"`
+	Name        string   `json:"nome"`
+	Role        string   `json:"cargo"`
+	Permissions []string `json:"permissoes"`
 }
 
 func (app Models) CreateClientModel(client Client) (int, error) {
