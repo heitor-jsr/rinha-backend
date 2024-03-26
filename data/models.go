@@ -18,10 +18,12 @@ func New(dbPool *pgxpool.Pool) Models {
 	db = dbPool
 
 	return Models{
-		Transactions: Transactions{},
-		Client:       Client{},
-		Statement:    Statement{},
-		Balance:      Balance{},
+		Transactions:      Transactions{},
+		Client:            Client{},
+		Statement:         Statement{},
+		Balance:           Balance{},
+		TransactionResult: TransactionResult{},
+		Agent:             Agent{},
 	}
 }
 
